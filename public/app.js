@@ -12,6 +12,8 @@ const state = {
   pos: new Map(),
   byId: new Map(),
   selected: null,
+  focusId: null,
+  edgeEls: new Map(),
   view: { x: 0, y: 0, k: 1 },
   playback: { timer: null, events: [], items: [], index: -1, speed: 320 },
 };
@@ -587,6 +589,7 @@ function render() {
   }
 
   applyView();
+  if (state.focusId && state.byId.has(state.focusId)) applyReachability(state.focusId);
 }
 
 function edgePath(a, b) {
@@ -633,6 +636,7 @@ function fit() {
 }
 
 let dragging = null;
+let backgroundDown = false;
 function initCanvas() {
   const canvas = $("#canvas");
   canvas.addEventListener("wheel", (e) => {
@@ -654,6 +658,7 @@ function initCanvas() {
     const target = e.target.closest ? e.target.closest(".node") : null;
     if (target) return;
     dragging = { x: e.clientX, y: e.clientY, vx: state.view.x, vy: state.view.y, moved: false };
+    backgroundDown = true;
     canvas.classList.add("grabbing");
   });
 
@@ -668,8 +673,11 @@ function initCanvas() {
   });
 
   window.addEventListener("mouseup", () => {
+    const wasClick = backgroundDown && dragging && !dragging.moved;
     dragging = null;
+    backgroundDown = false;
     canvas.classList.remove("grabbing");
+    if (wasClick) clearReachability();
   });
 
   $("#nodes").addEventListener("click", (e) => {
@@ -687,6 +695,140 @@ function initCanvas() {
   $("#btn-sample").addEventListener("click", autoFillForm);
   $("#btn-init").addEventListener("click", runInit);
   $("#btn-play").addEventListener("click", () => playTrace(state.playback.events, state.playback.items, true));
+  $("#focus-clear").addEventListener("click", clearReachability);
+  initSearch();
+}
+
+/* ------------------------------------------------------------------ */
+/* search combobox                                                     */
+/* ------------------------------------------------------------------ */
+let searchResults = [];
+let searchIndex = -1;
+
+function highlightMatch(text, q) {
+  const lower = text.toLowerCase();
+  const idx = lower.indexOf(q);
+  if (idx < 0) return esc(text);
+  return esc(text.slice(0, idx)) + "<mark>" + esc(text.slice(idx, idx + q.length)) + "</mark>" + esc(text.slice(idx + q.length));
+}
+
+function renderSearchResults(q) {
+  const drop = $("#search-drop");
+  drop.innerHTML = "";
+  searchResults.forEach((fn, i) => {
+    const item = el("div", { class: `sd-item${i === searchIndex ? " active" : ""}`, "data-index": String(i), role: "option" });
+    item.appendChild(el("span", { class: "sd-name", html: highlightMatch(fn.name, q) }));
+    if (fn.kind === "init") item.appendChild(el("span", { class: "sd-kind" }, "init"));
+    item.appendChild(
+      el("span", { class: "sd-params" }, fn.params.length ? `(${fn.params.map((p) => p.name).join(", ")})` : "()"),
+    );
+    item.appendChild(el("span", { class: "sd-file" }, fn.file));
+    item.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      chooseSearch(i);
+    });
+    item.addEventListener("mouseenter", () => {
+      searchIndex = i;
+      $$(".sd-item", drop).forEach((n, j) => n.classList.toggle("active", j === i));
+    });
+    drop.appendChild(item);
+  });
+}
+
+function openSearch(query) {
+  const q = query.trim().toLowerCase();
+  const drop = $("#search-drop");
+  if (!q) {
+    closeSearch();
+    return;
+  }
+  searchResults = state.graph.functions
+    .filter((f) => f.name.toLowerCase().includes(q) || f.file.toLowerCase().includes(q))
+    .sort((a, b) => {
+      const an = a.name.toLowerCase();
+      const bn = b.name.toLowerCase();
+      const ap = an.startsWith(q) ? 0 : 1;
+      const bp = bn.startsWith(q) ? 0 : 1;
+      if (ap !== bp) return ap - bp;
+      return an.localeCompare(bn) || a.file.localeCompare(b.file);
+    })
+    .slice(0, 40);
+
+  if (!searchResults.length) {
+    drop.innerHTML = '<div class="sd-empty">no matching functions</div>';
+    drop.classList.remove("hidden");
+    $("#search-input").setAttribute("aria-expanded", "true");
+    searchIndex = -1;
+    return;
+  }
+  searchIndex = searchIndex < 0 || searchIndex >= searchResults.length ? 0 : searchIndex;
+  renderSearchResults(q);
+  drop.classList.remove("hidden");
+  $("#search-input").setAttribute("aria-expanded", "true");
+}
+
+function closeSearch() {
+  $("#search-drop").classList.add("hidden");
+  $("#search-input").setAttribute("aria-expanded", "false");
+  searchIndex = -1;
+}
+
+function moveSearch(delta) {
+  if (!searchResults.length) return;
+  searchIndex = (searchIndex + delta + searchResults.length) % searchResults.length;
+  renderSearchResults($("#search-input").value.trim().toLowerCase());
+  const active = $("#search-drop .sd-item.active");
+  if (active) active.scrollIntoView({ block: "nearest" });
+}
+
+function chooseSearch(i) {
+  const fn = searchResults[i];
+  if (!fn) return;
+  closeSearch();
+  const input = $("#search-input");
+  input.value = fn.name;
+  input.blur();
+  selectNode(fn.id, { focus: true, keepFocus: true });
+  applyReachability(fn.id);
+}
+
+function initSearch() {
+  const input = $("#search-input");
+  input.addEventListener("input", () => openSearch(input.value));
+  input.addEventListener("focus", () => {
+    if (input.value.trim()) openSearch(input.value);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if ($("#search-drop").classList.contains("hidden")) openSearch(input.value);
+      else moveSearch(1);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      moveSearch(-1);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (searchIndex >= 0) chooseSearch(searchIndex);
+      else if (searchResults.length) chooseSearch(0);
+    } else if (e.key === "Escape") {
+      closeSearch();
+      input.blur();
+    }
+  });
+  input.addEventListener("blur", () => {
+    setTimeout(closeSearch, 120);
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest || !e.target.closest("#search")) closeSearch();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "/" && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "")) {
+      e.preventDefault();
+      input.focus();
+    }
+  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -696,6 +838,8 @@ function selectNode(id, opts = {}) {
   const fn = state.byId.get(id);
   if (!fn) return;
   state.selected = fn;
+
+  if (!opts.keepFocus) clearReachability();
 
   $$(".node").forEach((n) => n.classList.toggle("selected", n.getAttribute("data-id") === id));
 
@@ -720,6 +864,50 @@ function focusNode(id) {
   state.view.x = rect.width / 2 - (p.x + p.w / 2) * state.view.k;
   state.view.y = rect.height / 2 - (p.y + p.h / 2) * state.view.k;
   applyView();
+}
+
+/* ---- reachability focus (dim functions not called from the picked one) ---- */
+function reachableFrom(id) {
+  const out = new Map();
+  for (const e of state.graph.edges) {
+    if (!out.has(e.from)) out.set(e.from, []);
+    out.get(e.from).push(e.to);
+  }
+  const set = new Set();
+  const stack = [id];
+  while (stack.length) {
+    const u = stack.pop();
+    if (set.has(u)) continue;
+    set.add(u);
+    for (const v of out.get(u) || []) stack.push(v);
+  }
+  return set;
+}
+
+function applyReachability(id) {
+  const fn = state.byId.get(id);
+  if (!fn) return;
+  state.focusId = id;
+  const set = reachableFrom(id);
+
+  $$(".node[data-id]").forEach((n) => {
+    n.classList.toggle("dim", !set.has(n.getAttribute("data-id")));
+  });
+  for (const e of state.graph.edges) {
+    const pathEl = state.edgeEls.get(`${e.from}->${e.to}`);
+    if (pathEl) pathEl.classList.toggle("dim", !(set.has(e.from) && set.has(e.to)));
+  }
+
+  $("#focus-name").textContent = fn.name;
+  $("#focus-banner").classList.remove("hidden");
+}
+
+function clearReachability() {
+  if (!state.focusId) return;
+  state.focusId = null;
+  $$(".node.dim").forEach((n) => n.classList.remove("dim"));
+  $$(".edge.dim").forEach((e) => e.classList.remove("dim"));
+  $("#focus-banner").classList.add("hidden");
 }
 
 function buildForm(fn, values) {
@@ -970,6 +1158,8 @@ async function loadGraph() {
     const graph = await res.json();
     state.graph = graph;
     state.byId = new Map((graph.functions || []).map((f) => [f.id, f]));
+    state.focusId = null;
+    $("#focus-banner").classList.add("hidden");
     computeLayout();
     render();
     setTimeout(fit, 30);
