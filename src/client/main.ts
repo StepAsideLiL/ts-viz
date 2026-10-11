@@ -803,6 +803,16 @@ function initCanvas(): void {
     if (id) selectNode(id);
   });
 
+  $<SVGGElement>("#nodes").addEventListener("dblclick", (e) => {
+    const node = (e.target as Element | null)?.closest?.(".node") ?? null;
+    if (!node) return;
+    const id = node.getAttribute("data-id");
+    if (!id) return;
+    e.preventDefault();
+    selectNode(id, { focus: true, keepFocus: true });
+    applyReachability(id);
+  });
+
   $<HTMLButtonElement>("#btn-fit").addEventListener("click", fit);
   $<HTMLButtonElement>("#btn-reload").addEventListener("click", () => void loadGraph());
   $<HTMLButtonElement>("#btn-run").addEventListener("click", () => void runSelected());
