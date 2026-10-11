@@ -1,0 +1,53 @@
+# dependencies
+node_modules/
+.bun/
+.pnp
+.pnp.js
+
+# build output
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# bun
+bun-debug.log
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# caches
+.cache/
+.turbo/
+.eslintcache
+.parcel-cache/
+
+# editors / os
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# misc
+*.local
+.tmp/
+temp/

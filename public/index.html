@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ts-viz · TypeScript visualizer</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header id="topbar">
+        <div class="brand">ts<span>·</span>viz</div>
+        <div class="project" id="project-name">loading…</div>
+        <div class="spacer"></div>
+        <button id="btn-init" class="btn">▶ Trace app init</button>
+        <button id="btn-fit" class="btn ghost">Fit</button>
+        <button id="btn-reload" class="btn ghost">Reload</button>
+      </header>
+
+      <main>
+        <section id="canvas-wrap">
+          <svg id="canvas" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#39435a" />
+              </marker>
+              <marker id="arrow-active" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#7c9cff" />
+              </marker>
+              <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+                <feGaussianBlur stdDeviation="4" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+            <g id="viewport">
+              <g id="edges"></g>
+              <g id="nodes"></g>
+            </g>
+          </svg>
+          <div id="empty" class="hidden">
+            <h2>No functions found</h2>
+            <p>Point ts-viz at a folder containing TypeScript files with functions.</p>
+          </div>
+          <div id="legend">
+            <span><i class="dot fn"></i>function</span>
+            <span><i class="dot init"></i>app init</span>
+            <span><i class="line"></i>call edge</span>
+          </div>
+          <div id="hint">drag to pan · scroll to zoom · click a node</div>
+        </section>
+
+        <aside id="panel">
+          <div id="panel-empty" class="panel-empty">
+            <div class="pe-icon">⌘</div>
+            <p>Select a function node to inspect its signature, feed it values and trace how the data flows.</p>
+          </div>
+
+          <div id="panel-content" class="hidden">
+            <div class="panel-head">
+              <div class="fn-title">
+                <span id="fn-name"></span>
+                <span id="fn-badge" class="badge"></span>
+              </div>
+              <div id="fn-file" class="muted"></div>
+            </div>
+            <div id="fn-sig" class="sig"></div>
+            <form id="fn-form" autocomplete="off"></form>
+            <div class="actions">
+              <button id="btn-run" class="btn primary" type="button">Run</button>
+              <button id="btn-sample" class="btn ghost" type="button">Auto-fill</button>
+              <button id="btn-clear" class="btn ghost" type="button">Clear</button>
+            </div>
+            <div id="run-output"></div>
+          </div>
+
+          <div id="trace-section">
+            <div class="trace-head">
+              <span>Call trace</span>
+              <span id="trace-count" class="muted"></span>
+              <span class="spacer"></span>
+              <button id="btn-play" class="btn tiny" type="button" disabled>▶ Replay</button>
+            </div>
+            <div id="trace-list" class="trace-list">
+              <div class="trace-empty">Run a function or app init to see the live call flow.</div>
+            </div>
+          </div>
+        </aside>
+      </main>
+    </div>
+    <script src="/app.js"></script>
+  </body>
+</html>
