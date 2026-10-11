@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { analyze } from "./analyzer.ts";
 import { buildRuntime } from "./runtime.ts";
+import { getClientBundle } from "./client-bundle.ts";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -54,6 +55,20 @@ export function createServer(rootDir: string, port: number) {
 
       if (route === "/api/meta") {
         return Response.json({ root: rootDir, port });
+      }
+
+      if (route === "/app.js") {
+        try {
+          const js = await getClientBundle();
+          return new Response(js, {
+            headers: { "Content-Type": "text/javascript; charset=utf-8" },
+          });
+        } catch (e) {
+          return new Response(`/* ts-viz client build error */\n${(e as Error).message}`, {
+            status: 500,
+            headers: { "Content-Type": "text/javascript; charset=utf-8" },
+          });
+        }
       }
 
       const safe = route === "/" ? "/index.html" : route;
